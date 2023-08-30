@@ -3,7 +3,7 @@ import dotenv from 'dotenv';
 import { DataSource } from "typeorm"
 
 import { CONTAINER, NODE_ENV } from './config'
-import { User } from "./entity/User"
+import { Users } from "./entity/User"
 
 dotenv.config();
 
@@ -19,7 +19,7 @@ const AppDataSource = new DataSource({
     database: DB_NAME,
     synchronize: NODE_ENV === 'production' ? false : true,
     logging: NODE_ENV === 'production' ? false : ["query", "error"],
-    entities: [User],
+    entities: [Users],
     migrations: [],
     subscribers: [],
 })
