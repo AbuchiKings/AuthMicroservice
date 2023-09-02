@@ -16,6 +16,9 @@ export class Users {
     isActive: boolean
 
     @Column()
+    isVerified: boolean
+
+    @Column()
     role: string
 
     @Column()

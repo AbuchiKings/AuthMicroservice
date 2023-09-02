@@ -11,14 +11,25 @@ export interface UserInterface {
     phone?: string
     createdAt?: Date;
     expiresIn?: number;
+    settings?:{twoFA?: boolean, gTwoFA: boolean},
+    isVerified: boolean
+    isActive: boolean
 }
 
 export interface ProtectedRequest extends Request {
     user: UserInterface;
     accessToken?: string;
+    refreshKey?: string;
     refreshToken?: string;
     hash?: string;
+    verificationRequired?: boolean;
+    addToken?: boolean;
     decodedToken?: any;
+    data?: any;
+    message?: string;
 }
 
-export type RequestFunction = (req: Request | ProtectedRequest, res: Response, next: NextFunction) => void;
+export interface Tokens {
+    accessToken: string;
+    refreshToken: string;
+}

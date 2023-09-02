@@ -5,8 +5,8 @@ import { readFile } from 'fs';
 import { sign, verify } from 'jsonwebtoken';
 
 import { InternalError, AuthFailureError, BadTokenError, TokenExpiredError } from '../utils/requestUtils/ApiError';
-import { UserInterface } from '../interfaces/interfaces'
-import { SECRET } from '../config';
+import { UserInterface, Tokens, ProtectedRequest } from '../interfaces/interfaces'
+import { SECRET, TOKEN_EXPIRATION_TIMEFRAME, REFRESH_EXPIRATION_TIMEFRAME } from '../config';
 
 const readPublicKey = async (): Promise<string> => {
     return promisify(readFile)(
@@ -22,11 +22,11 @@ const readPrivateKey = async (): Promise<string> => {
     );
 }
 
-export const signToken = async (payload: JwtPayload): Promise<string> => {
+export const signToken = async (payload: JwtPayload, expiresIn = TOKEN_EXPIRATION_TIMEFRAME): Promise<string> => {
     const cert = await readPrivateKey();
     if (!cert) throw new InternalError('Token generation failed');
     // @ts-ignore
-    return promisify(sign)({ ...payload }, cert, { algorithm: 'RS256' });
+    return promisify(sign)({ ...payload }, cert, { algorithm: 'RS256', expiresIn });
 }
 
 export const validateToken = async (token: string): Promise<JwtPayload> => {
@@ -36,51 +36,64 @@ export const validateToken = async (token: string): Promise<JwtPayload> => {
     return promisify(verify)(token, cert);
 }
 
-export const signAccessToken = async (payload: JwtPayload): Promise<string> => {
+export const signRefreshToken = async (payload: JwtPayload): Promise<string> => {
     // @ts-ignore
-    return promisify(sign)({ ...payload }, SECRET);
+    return promisify(sign)({ ...payload }, SECRET, { expiresIn: REFRESH_EXPIRATION_TIMEFRAME });
 }
 
-export const validateAccessToken = async (token: string): Promise<JwtPayload> => {
+export const validateRefreshToken = async (token: string): Promise<JwtPayload> => {
     // @ts-ignore
     return promisify(verify)(token, SECRET);
+}
+
+export const decodeJwt = (token: string, secret = SECRET): Promise<JwtPayload> => {
+
+    const cert = readPublicKey();
+    if (!cert) throw new InternalError('Unable to read key.');
+    // @ts-ignore
+    return promisify(verify)(token, secret, { ignoreExpiration: true });
 }
 
 
 export class JwtPayload {
     aud: string;
-    key?: string;
     hash?: string;
+    key?: string;
     role?: string;
     iss?: string;
-    iat?: number;
-    exp?: number;
-    sub?: number;
+    sub: number;
     email: string
 
 
-    constructor(sub: number, key: string, email: string) {
+    constructor(sub: number, hash: string, email?: string, key?: string) {
         this.iss = 'issuer';
         this.aud = 'access';
-        this.iat = Math.floor(Date.now() / 1000);
-        //this.exp = this.iat + 3 * 24 * 60 * 60;
-        this.email = email
+        email ? this.email : {}
+        this.hash = hash
         this.key = key
         this.sub = sub
     }
 }
 
-export const createToken = async (user: UserInterface, accessTokenKey: string): Promise<string> => {
-    const accessToken = await signToken(
-        new JwtPayload(
-            user.id,
-            accessTokenKey,
-            user.email || ''
-        ),
-    );
+export const createTokens = async (user: UserInterface, hash: string, refreshTokenKey: string): Promise<Tokens> => {
+    const [accessToken, refreshToken] = await Promise.all([
+        signToken(
+            new JwtPayload(
+                user.id,
+                hash,
+                user.email || ''
+            ),),
+        signRefreshToken(
+            new JwtPayload(
+                user.id,
+                hash,
+                user.email || '',
+                refreshTokenKey
+            ),)
+    ])
 
-    if (!accessToken) throw new InternalError();
-    return accessToken
+    if (!accessToken || refreshToken) throw new InternalError();
+    return { accessToken, refreshToken }
 };
 
 export const getAccessToken = (authorization?: string) => {
@@ -89,3 +102,11 @@ export const getAccessToken = (authorization?: string) => {
     return authorization.split(' ')[1];
 };
 
+
+
+export const genVerificationCode = async(user: UserInterface) => {
+/***
+ * creates  verification code and sends to user via mail
+ *  */   
+ return;
+}
